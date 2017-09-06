@@ -108,7 +108,6 @@ extern int system_rev;
 #define DEV_AUDIO_1         (1 << 0)
 
 #define DEV_T1_USB_MASK            (DEV_USB_OTG | DEV_USB_CHG | DEV_USB)
-#define DEV_T1_UART_MASK           (DEV_UART)
 #define DEV_T1_CHARGER_MASK        (DEV_DEDICATED_CHG | DEV_CAR_KIT)
 #define DEV_CARKIT_CHARGER1_MASK   (1 << 1)
 #define MANSW1_OPEN_RUSTPROOF      ((0x0 << 5) | (0x3 << 2) | (1 << 0))
@@ -939,6 +938,9 @@ static void muic_rustproof_feature(struct i2c_client *client, int state)
 				SW_ALL_OPEN_WITH_VBUS);
 		if (val < 0)
 			dev_info(&client->dev, "%s:MANUAL SW1,err %d\n", __func__, val);
+		val = sm5703_muic_write_reg(client, REG_MANUAL_SW2, 0x04);
+		if (val < 0)
+			dev_info(&client->dev, "%s: MANUAL SW2,err %d\n", __func__, val);
 		val = sm5703_muic_read_reg(client, REG_CONTROL);
 		if (val < 0)
 			dev_info(&client->dev, "%s:CTRL REG,err %d\n", __func__, val);
@@ -947,12 +949,6 @@ static void muic_rustproof_feature(struct i2c_client *client, int state)
 		if (val < 0)
 			dev_info(&client->dev, "%s:CTRL REG,err %d\n", __func__, val);
 	} else {
-		val = sm5703_muic_write_reg(client, REG_MANUAL_SW2, 0x00);
-		if (val < 0)
-			dev_info(&client->dev, "%s: MANUAL SW2,err %d\n", __func__, val);
-		val = sm5703_muic_write_reg(client, REG_MANUAL_SW1, SW_ALL_OPEN);
-		if (val < 0)
-			dev_info(&client->dev, "%s: MANUAL SW1,err %d\n", __func__, val);
 		val = sm5703_muic_read_reg(client, REG_CONTROL);
 		if (val < 0)
 			dev_info(&client->dev, "%s: CTRL REG,err %d\n", __func__, val);
@@ -960,6 +956,12 @@ static void muic_rustproof_feature(struct i2c_client *client, int state)
 		val = sm5703_muic_write_reg(client, REG_CONTROL, val);
 		if (val < 0)
 			dev_info(&client->dev, "%s: CTRL REG,err %d\n", __func__, val);
+		val = sm5703_muic_write_reg(client, REG_MANUAL_SW2, 0x00);
+		if (val < 0)
+			dev_info(&client->dev, "%s: MANUAL SW2,err %d\n", __func__, val);
+		val = sm5703_muic_write_reg(client, REG_MANUAL_SW1, SW_ALL_OPEN);
+		if (val < 0)
+			dev_info(&client->dev, "%s: MANUAL SW1,err %d\n", __func__, val);
 	}
 }
 #endif
@@ -1129,13 +1131,17 @@ static int sm5703_muic_attach_dev(struct sm5703_muic_usbsw *usbsw)
 		pdata->callback(CABLE_TYPE_CDP, SM5703_MUIC_ATTACHED);
 		usbsw->attached_dev = ATTACHED_DEV_CDP_MUIC;
 	/* UART */
-	} else if (val1 & DEV_T1_UART_MASK || val2 & DEV_T2_UART_MASK) {
+	} else if (val2 & DEV_T2_UART_MASK) {
 		uart_sm5703_muic_connecting = 1;
 		muic_update_jig_state(usbsw, val2, vbus);
 #if defined(CONFIG_MUIC_SUPPORT_RUSTPROOF)
 		if (usbsw->is_rustproof) {
 			pr_info("[MUIC] RustProof mode, close UART Path\n");
 			muic_rustproof_feature(client, SM5703_MUIC_ATTACHED);
+			if (vbus & DEV_VBUSIN_VALID)
+				pdata->callback(CABLE_TYPE_JIG_UART_OFF_VB, SM5703_MUIC_ATTACHED);
+			else
+				pdata->callback(CABLE_TYPE_UARTOFF, SM5703_MUIC_ATTACHED);
 		} else
 #endif
 		{
@@ -1388,11 +1394,15 @@ static int sm5703_muic_detach_dev(struct sm5703_muic_usbsw *usbsw)
 		pdata->callback(CABLE_TYPE_CDP, SM5703_MUIC_DETACHED);
 
 	/* UART */
-	} else if ((usbsw->dev1 & DEV_T1_UART_MASK) || (usbsw->dev2 & DEV_T2_UART_MASK)) {
+	} else if (usbsw->dev2 & DEV_T2_UART_MASK) {
 #if defined(CONFIG_MUIC_SUPPORT_RUSTPROOF)
 		if (usbsw->is_rustproof) {
 			pr_info("[MUIC] RustProof mode Disconnected Event\n");
 			muic_rustproof_feature(usbsw->client, SM5703_MUIC_DETACHED);
+			if (usbsw->vbus & DEV_VBUSIN_VALID)
+				pdata->callback(CABLE_TYPE_JIG_UART_OFF_VB, SM5703_MUIC_DETACHED);
+			else
+				pdata->callback(CABLE_TYPE_UARTOFF, SM5703_MUIC_DETACHED);
 		} else
 #endif
 		{

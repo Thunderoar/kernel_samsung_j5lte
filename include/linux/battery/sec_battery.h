@@ -41,6 +41,14 @@ struct sec_battery_extcon_cable{
 };
 #endif /* CONFIG_EXTCON */
 
+#if defined(CONFIG_CHARGING_VZWCONCEPT)
+#define STORE_MODE_CHARGING_MAX 35
+#define STORE_MODE_CHARGING_MIN 30
+#else
+#define STORE_MODE_CHARGING_MAX 70
+#define STORE_MODE_CHARGING_MIN 60
+#endif
+
 #define ADC_CH_COUNT		10
 #define ADC_SAMPLE_COUNT	10
 

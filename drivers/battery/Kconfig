@@ -424,3 +424,9 @@ config EN_OOPS
 	default n
 	help
 	  Say Y to enable oops filter
+
+config STORE_MODE
+	bool "enable store mode"
+	default n
+	help
+		Say Y to enable CONFIG_STORE_MODE
